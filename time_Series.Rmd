@@ -1,0 +1,622 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+Loading the Package:
+
+
+```{r}
+library(plyr)
+library(dplyr)
+library(ggplot2)
+
+
+#Loading the Data
+dataNW<-read.csv("Demand Forecasting dataset.csv")
+head(dataNW)
+
+
+
+```
+
+
+Data Explorationg:
+
+1.Checking all the Variables
+
+```{r}
+library(DataExplorer)
+plot_str(dataNW)
+```
+
+2. Checking Missing Values
+
+```{r}
+plot_missing(dataNW)
+
+```
+
+```{r}
+str(dataNW)
+
+```
+
+
+
+
+3. Changing Order date and Shipping Date into "Date" format
+
+
+
+
+```{r}
+library(lubridate)
+dataNW$Order.Date<-as.Date(dataNW$Order.Date,'%m/%d/%Y')
+dataNW$Ship.Date<-as.Date(dataNW$Ship.Date,'%m/%d/%Y')
+```
+
+
+4. Data Visualization to check the Highest Sales with respect to Segment
+
+```{r}
+segment_sale = aggregate(Sales ~ Segment, data = dataNW, sum)
+segment_sale
+```
+
+
+
+```{r}
+ggplot(segment_sale, aes(x = Segment, y = Sales)) + geom_bar(stat =
+"identity", fill = 'khaki', colour = 'black') + ggtitle("Sales by Segment") + labs(y = "Segment", x =
+"Sales")
+```
+
+
+We can that Sales in Consumer Sector is Highest
+
+
+
+
+
+
+
+
+Time  Series Forecasting 
+
+1. Segment- Counsumer:
+
+
+Extracting the Order Date and Sales filtered with Segment- Consumer.
+
+```{r}
+
+library(dplyr)
+Consumer<-dataNW %>% 
+  select(Order.Date, Sales) %>%
+  filter(dataNW$Segment == "Consumer")
+
+```
+
+
+Displaying the data order by Order_Date:
+
+```{r}
+counsumer<-Consumer[order(as.Date(Consumer$Order.Date, "%m/%d/%Y"), decreasing = FALSE),] 
+tail(counsumer)
+```
+
+
+Adding Year and Month
+
+```{r}
+counsumer$year <- format(as.Date(counsumer$Order.Date), "%Y")
+counsumer$month <- format(as.Date(counsumer$Order.Date), "%m")
+
+head(counsumer)
+```
+
+
+
+Using SQL Package to select year and month and the total sales order by year and month
+
+```{r}
+library(sqldf)
+counsumer<-sqldf("select year, month, sum(Sales) as Month_Sales from counsumer group by year, month order by year, month")
+tail(counsumer)
+
+```
+Analysis- Total sum of Sales in December 2017 is $50232.46
+
+
+Changing the data into time series-
+
+```{r}
+timeSeriesCounsumer<-ts(counsumer$Month_Sales, frequency=12,start=c(2014,1),end=c(2017,12))
+plot(timeSeriesCounsumer)
+head(timeSeriesCounsumer)
+```
+
+There is Seasonality on the time series
+
+```{r}
+decompose_consumer<-decompose(timeSeriesCounsumer)
+plot(decompose_consumer)
+```
+
+
+TIME SERIES FORCASTING
+
+Simple Smoothing
+
+For next 2 years:
+
+```{r}
+library(forecast)
+simple_smoothing1 <- forecast(timeSeriesCounsumer)
+summary(simple_smoothing1)
+
+```
+
+December 2017 Total Sale in December is 50232.46
+
+After 1 year, forecasted sale would be 44695.30
+
+
+
+50232.46-44695.30/50232.46= 11% 
+
+
+
+
+```{r}
+accuracy(simple_smoothing1)
+```
+
+```{r}
+plot(simple_smoothing1)
+```
+
+
+Plot Between Actual and Residual:
+
+```{r}
+library(ggplot2)
+qplot(y = simple_smoothing1$residuals, x = timeSeriesCounsumer,
+      ylab = "Residuals", xlab = "Actual values", 
+      main = " Residuals vs. Actual plot") +
+  stat_smooth(method = "loess", span = 0.1, colour = I("blue"), se = FALSE)
+```
+
+
+Since the sales of Cousmer might fall down 1 year later- Lets check the forecast of Cosunmer in the three 3 Regions :
+
+FOR SOUTH
+
+```{r}
+library(dplyr)
+Consumer_South<-dataNW %>% 
+  select(Order.Date, Sales) %>%
+  filter(dataNW$Segment == "Consumer",dataNW$Region=="South")
+```
+
+
+```{r}
+tail(Consumer_South)
+```
+
+```{r}
+Consumer_South<-Consumer_South[order(as.Date(Consumer_South$Order.Date, "%m/%d/%Y"), decreasing = FALSE),] 
+tail(Consumer_South)
+```
+
+```{r}
+Consumer_South$year <- format(as.Date(Consumer_South$Order.Date), "%Y")
+Consumer_South$month <- format(as.Date(Consumer_South$Order.Date), "%m")
+
+head(Consumer_South)
+```
+
+
+
+```{r}
+library(sqldf)
+Consumer_South<-sqldf("select year, month, sum(Sales) as Month_Sales from Consumer_South group by year, month order by year, month")
+tail(Consumer_South)
+
+```
+
+Sum of Total Sales for Counsumer Segment in South in December 2017 is $11159.3222
+
+
+
+
+
+```{r}
+timeSeriesCounsumer_South<-ts(Consumer_South$Month_Sales, frequency=12,start=c(2014,1),end=c(2017,12))
+plot(timeSeriesCounsumer_South)
+```
+
+```{r}
+decompose_consumer_south<-decompose(timeSeriesCounsumer_South)
+plot(decompose_consumer_south)
+```
+
+
+TIME SERIES FORCASTING
+
+Simple Smoothing
+
+For next 2 years:
+
+```{r}
+library(forecast)
+simple_smoothing1_south <- forecast(timeSeriesCounsumer_South)
+summary(simple_smoothing1_south)
+
+```
+
+After 1 year forecast of total sales would be $6525.516
+
+
+
+
+2. For Central
+
+```{r}
+library(dplyr)
+Consumer_Central<-dataNW %>% 
+  select(Order.Date, Sales) %>%
+  filter(dataNW$Segment == "Consumer",dataNW$Region=="Central")
+```
+
+
+```{r}
+tail(Consumer_Central)
+```
+
+```{r}
+Consumer_Central<-Consumer_Central[order(as.Date(Consumer_Central$Order.Date, "%m/%d/%Y"), decreasing = FALSE),] 
+tail(Consumer_Central)
+```
+
+```{r}
+Consumer_Central$year <- format(as.Date(Consumer_Central$Order.Date), "%Y")
+Consumer_Central$month <- format(as.Date(Consumer_Central$Order.Date), "%m")
+
+head(Consumer_Central)
+```
+
+
+
+```{r}
+library(sqldf)
+Consumer_Central<-sqldf("select year, month, sum(Sales) as Month_Sales from Consumer_Central group by year, month order by year, month")
+tail(Consumer_Central)
+
+```
+Total Sum of Sales in December 2017 is $13793.727 for Counsmer Segment in Central region
+
+
+
+
+```{r}
+timeSeriesCounsumer_central<-ts(Consumer_Central$Month_Sales, frequency=12,start=c(2014,1),end=c(2017,12))
+plot(timeSeriesCounsumer_central)
+```
+
+```{r}
+decompose_consumer_central<-decompose(timeSeriesCounsumer_central)
+plot(decompose_consumer_central)
+```
+There is no trend but there is sesonality.
+
+
+
+TIME SERIES FORCASTING
+
+Simple Smoothing
+
+For next 2 years:
+
+```{r}
+library(forecast)
+simple_smoothing1_central <- forecast(timeSeriesCounsumer_central)
+summary(simple_smoothing1_central)
+
+```
+Forecast of Total sales after 1 year would be $9472.7526
+
+
+3. FOR WEST
+
+
+```{r}
+library(dplyr)
+Consumer_West<-dataNW %>% 
+  select(Order.Date, Sales) %>%
+  filter(dataNW$Segment == "Consumer",dataNW$Region=="West")
+```
+
+
+```{r}
+tail(Consumer_West)
+```
+
+```{r}
+Consumer_West<-Consumer_West[order(as.Date(Consumer_West$Order.Date, "%m/%d/%Y"), decreasing = FALSE),] 
+tail(Consumer_West)
+```
+
+```{r}
+Consumer_West$year <- format(as.Date(Consumer_West$Order.Date), "%Y")
+Consumer_West$month <- format(as.Date(Consumer_West$Order.Date), "%m")
+
+head(Consumer_West)
+```
+
+
+
+```{r}
+library(sqldf)
+Consumer_West<-sqldf("select year, month, sum(Sales) as Month_Sales from Consumer_West group by year, month order by year, month")
+tail(Consumer_West)
+
+```
+Total Sales in December 2017 is $12589.989
+
+
+
+```{r}
+timeSeriesCounsumer_west<-ts(Consumer_West$Month_Sales, frequency=12,start=c(2014,1),end=c(2017,12))
+plot(timeSeriesCounsumer_west)
+```
+
+```{r}
+decompose_consumer_west<-decompose(timeSeriesCounsumer_west)
+plot(decompose_consumer_west)
+```
+
+
+TIME SERIES FORCASTING
+
+Simple Smoothing
+
+For next 2 years:
+
+```{r}
+library(forecast)
+simple_smoothing1_west <- forecast(timeSeriesCounsumer_west)
+summary(simple_smoothing1_west)
+
+```
+
+Forecast of Total Sales after 1 year would be $11603.561
+
+
+
+4. FOR EAST
+
+```{r}
+library(dplyr)
+Consumer_East<-dataNW %>% 
+  select(Order.Date, Sales) %>%
+  filter(dataNW$Segment == "Consumer",dataNW$Region=="East")
+```
+
+
+```{r}
+tail(Consumer_East)
+```
+
+```{r}
+Consumer_East<-Consumer_East[order(as.Date(Consumer_East$Order.Date, "%m/%d/%Y"), decreasing = FALSE),] 
+tail(Consumer_East)
+```
+
+```{r}
+Consumer_East$year <- format(as.Date(Consumer_East$Order.Date), "%Y")
+Consumer_East$month <- format(as.Date(Consumer_East$Order.Date), "%m")
+
+head(Consumer_East)
+```
+
+
+
+```{r}
+library(sqldf)
+Consumer_East<-sqldf("select year, month, sum(Sales) as Month_Sales from Consumer_East group by year, month order by year, month")
+tail(Consumer_East)
+
+```
+Total Sales in Decemeber 2017 is $12689.418
+
+
+```{r}
+timeSeriesCounsumer_east<-ts(Consumer_East$Month_Sales, frequency=12,start=c(2014,1),end=c(2017,12))
+plot(timeSeriesCounsumer_east)
+```
+
+```{r}
+decompose_consumer_east<-decompose(timeSeriesCounsumer_east)
+plot(decompose_consumer_east)
+```
+
+
+TIME SERIES FORCASTING
+
+Simple Smoothing
+
+For next 2 years:
+
+```{r}
+library(forecast)
+simple_smoothing1_central <- forecast(timeSeriesCounsumer_east)
+summary(simple_smoothing1_central)
+
+```
+
+Forecast of Total Sales after 1 year would be $13327.104
+
+Sale in the Central Region is going high.
+
+
+
+
+
+
+
+CORPORATE
+
+
+```{r}
+
+library(dplyr)
+Corporate<-dataNW %>% 
+  select(Order.Date, Sales) %>%
+  filter(dataNW$Segment == "Corporate")
+
+```
+
+
+```{r}
+Corporate<-Corporate[order(as.Date(Corporate$Order.Date, "%m/%d/%Y"), decreasing = FALSE),] 
+tail(Corporate)
+```
+
+
+```{r}
+Corporate$year <- format(as.Date(Corporate$Order.Date), "%Y")
+Corporate$month <- format(as.Date(Corporate$Order.Date), "%m")
+
+head(Corporate)
+```
+
+```{r}
+library(sqldf)
+Corporate<-sqldf("select year, month, sum(Sales) as Month_Sales from Corporate group by year, month order by year, month")
+tail(Corporate)
+
+```
+
+
+```{r}
+timeSeriesCorporate<-ts(Corporate$Month_Sales, frequency=12,start=c(2014,1),end=c(2017,12))
+plot(timeSeriesCorporate)
+head(timeSeriesCorporate)
+```
+
+```{r}
+timeSeriesCorporate_decompose<-decompose(timeSeriesCorporate)
+plot(timeSeriesCorporate_decompose)
+```
+
+
+```{r}
+simple_smoothing2 <- forecast(timeSeriesCorporate)
+summary(simple_smoothing2)
+
+```
+
+
+30433.043
+
+
+20524.43
+
+
+```{r}
+accuracy(simple_smoothing2)
+```
+
+```{r}
+plot(simple_smoothing2)
+```
+
+```{r}
+library(ggplot2)
+qplot(y = simple_smoothing2$residuals, x = timeSeriesCorporate,
+      ylab = "Residuals", xlab = "Actual values", 
+      main = " Residuals vs. Actual plot") +
+  stat_smooth(method = "loess", span = 0.1, colour = I("blue"), se = FALSE)
+```
+
+3. Home Office
+
+
+
+
+```{r}
+
+library(dplyr)
+Home_Office<-dataNW %>% 
+  select(Order.Date, Sales) %>%
+  filter(dataNW$Segment == "Home Office")
+
+```
+
+
+```{r}
+Home_Office<-Home_Office[order(as.Date(Home_Office$Order.Date, "%m/%d/%Y"), decreasing = FALSE),] 
+tail(Home_Office)
+```
+
+
+```{r}
+Home_Office$year <- format(as.Date(Home_Office$Order.Date), "%Y")
+Home_Office$month <- format(as.Date(Home_Office$Order.Date), "%m")
+
+head(Home_Office)
+```
+
+```{r}
+library(sqldf)
+Home_Office<-sqldf("select year, month, sum(Sales) as Month_Sales from Home_Office group by year, month order by year, month")
+tail(Home_Office)
+
+```
+
+
+
+
+```{r}
+timeSeriesHome_Office<-ts(Home_Office$Month_Sales, frequency=12,start=c(2014,1),end=c(2017,12))
+plot(timeSeriesHome_Office)
+head(timeSeriesHome_Office)
+```
+
+```{r}
+timeSeriesHome_Office_decompose<-decompose(timeSeriesHome_Office)
+plot<-timeSeriesHome_Office_decompose
+
+```
+
+```{r}
+plot(timeSeriesHome_Office_decompose)
+
+```
+
+
+```{r}
+simple_smoothing3 <- forecast(timeSeriesHome_Office)
+summary(simple_smoothing3)
+
+```
+
+
+```{r}
+plot(simple_smoothing3)
+```
+
+```{r}
+library(ggplot2)
+qplot(y = simple_smoothing3$residuals, x = timeSeriesHome_Office,
+      ylab = "Residuals", xlab = "Actual values", 
+      main = " Residuals vs. Actual plot") +
+  stat_smooth(method = "loess", span = 0.1, colour = I("blue"), se = FALSE)
+```
+
